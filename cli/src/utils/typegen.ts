@@ -13,6 +13,13 @@ const ITERATOR_OBJECT_COMPATIBILITY_DECLARATION = `declare global {
   }
 }`
 
+export function createWasmModuleTypeDef() {
+  return `${DEFAULT_TYPE_DEF_HEADER}
+declare const wasmModule: WebAssembly.Module
+export default wasmModule
+`
+}
+
 enum TypeDefKind {
   Const = 'const',
   Enum = 'enum',

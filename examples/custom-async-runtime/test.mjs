@@ -18,20 +18,21 @@ assert.ok(mode === 'native' || mode === 'wasi', `Unknown test mode: ${mode}`)
 
 const require = createRequire(import.meta.url)
 const bindingFile =
-  mode === 'wasi' ? './custom_async_runtime.wasi.cjs' : './index.cjs'
+  mode === 'wasi' ? './custom_async_runtime.wasip1.cjs' : './index.cjs'
+const resolvedBindingFile = require.resolve(bindingFile)
 
 if (mode === 'wasi') {
   const [source, declarations] = await Promise.all([
     readFile(
-      new URL('./custom_async_runtime.wasi.cjs', import.meta.url),
+      new URL('./custom_async_runtime.wasip1.cjs', import.meta.url),
       'utf8',
     ),
     readFile(new URL('./index.d.cts', import.meta.url), 'utf8'),
   ])
-  assert.match(source, /node:worker_threads/)
-  assert.match(source, /\bWorker\b/)
-  assert.match(source, /shared:\s*true/)
-  assert.match(source, /onCreateWorker/)
+  assert.doesNotMatch(source, /node:worker_threads/)
+  assert.doesNotMatch(source, /\bWorker\b/)
+  assert.doesNotMatch(source, /SharedArrayBuffer/)
+  assert.match(source, /asyncWorkPoolSize:\s*0/)
   assert.doesNotMatch(source, /retainTaskWaker/)
   assert.doesNotMatch(declarations, /retainTaskWaker/)
 }
@@ -132,6 +133,41 @@ if (mode === 'native') {
     binding.asyncPanicString(7),
     /custom runtime async string panic: 7/,
   )
+} else {
+  // Stable Rust ships wasm32-wasip1 with panic=abort. catch_unwind cannot
+  // turn that trap into a Promise rejection, so isolate the public behavior.
+  const panicResult = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      `
+        const binding = require(${JSON.stringify(resolvedBindingFile)})
+        try {
+          const promise = binding.asyncPanic()
+          Promise.resolve(promise).then(
+            () => {
+              console.error('WASI_PANIC_UNEXPECTEDLY_RESOLVED')
+              process.exit(41)
+            },
+            (error) => {
+              console.error('WASI_PANIC_UNEXPECTEDLY_REJECTED', error)
+              process.exit(42)
+            },
+          )
+        } catch (error) {
+          console.error('WASI_PANIC_ABORT_TRAP', error)
+          process.exit(43)
+        }
+      `,
+    ],
+    { encoding: 'utf8' },
+  )
+  const panicOutput = `${panicResult.stdout}\n${panicResult.stderr}`
+  assert.equal(panicResult.signal, null, panicOutput)
+  assert.equal(panicResult.status, 43, panicOutput)
+  assert.match(panicOutput, /WASI_PANIC_ABORT_TRAP/)
+  assert.match(panicOutput, /RuntimeError: unreachable/)
+  assert.doesNotMatch(panicOutput, /WASI_PANIC_UNEXPECTEDLY_REJECTED/)
 }
 
 const afterAsync = binding.getRuntimeMetrics()
@@ -222,6 +258,10 @@ assert.equal(afterStart.startCalls, beforeLifecycle.startCalls + 1)
 assert.equal(await binding.asyncDouble(21), 42)
 
 if (mode === 'native') {
+  assert.ok(
+    nativeBindingFile,
+    'native binding must be present in require.cache',
+  )
   const restoredWorker = new Worker(
     `
       const { parentPort } = require('node:worker_threads')
