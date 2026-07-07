@@ -1077,6 +1077,7 @@ jobs:
             --cwd examples/custom-async-runtime \
             --target wasm32-wasip1 \
             --platform \
+            --js index.cjs \
             --no-default-features \
             --features async-runtime \
             --dts index.d.cts
