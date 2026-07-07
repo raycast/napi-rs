@@ -14,25 +14,37 @@ import {
 } from './pure-runtime-lifecycle.mjs'
 
 const mode = process.argv[2] ?? 'native'
-assert.ok(mode === 'native' || mode === 'wasi', `Unknown test mode: ${mode}`)
+assert.ok(
+  mode === 'native' || mode === 'wasi' || mode === 'wasi-threads',
+  `Unknown test mode: ${mode}`,
+)
 
 const require = createRequire(import.meta.url)
+const isWasi = mode === 'wasi' || mode === 'wasi-threads'
 const bindingFile =
-  mode === 'wasi' ? './custom_async_runtime.wasip1.cjs' : './index.cjs'
+  mode === 'wasi'
+    ? './custom_async_runtime.wasip1.cjs'
+    : mode === 'wasi-threads'
+      ? './custom_async_runtime.wasi.cjs'
+      : './index.cjs'
 const resolvedBindingFile = require.resolve(bindingFile)
 
-if (mode === 'wasi') {
+if (isWasi) {
   const [source, declarations] = await Promise.all([
-    readFile(
-      new URL('./custom_async_runtime.wasip1.cjs', import.meta.url),
-      'utf8',
-    ),
+    readFile(new URL(bindingFile, import.meta.url), 'utf8'),
     readFile(new URL('./index.d.cts', import.meta.url), 'utf8'),
   ])
-  assert.doesNotMatch(source, /node:worker_threads/)
-  assert.doesNotMatch(source, /\bWorker\b/)
-  assert.doesNotMatch(source, /SharedArrayBuffer/)
-  assert.match(source, /asyncWorkPoolSize:\s*0/)
+  if (mode === 'wasi') {
+    assert.doesNotMatch(source, /node:worker_threads/)
+    assert.doesNotMatch(source, /\bWorker\b/)
+    assert.doesNotMatch(source, /SharedArrayBuffer/)
+    assert.match(source, /asyncWorkPoolSize:\s*0/)
+  } else {
+    assert.match(source, /node:worker_threads/)
+    assert.match(source, /\bWorker\b/)
+    assert.match(source, /shared:\s*true/)
+    assert.match(source, /onCreateWorker/)
+  }
   assert.doesNotMatch(source, /retainTaskWaker/)
   assert.doesNotMatch(declarations, /retainTaskWaker/)
 }
@@ -92,8 +104,8 @@ async function startRuntimeAfterRetirement(binding) {
 
 const initial = binding.getRuntimeMetrics()
 
-assert.equal(binding.isWasm(), mode === 'wasi')
-assert.equal(initial.tokioRuntimeEnabled, mode === 'native')
+assert.equal(binding.isWasm(), isWasi)
+assert.equal(initial.tokioRuntimeEnabled, mode !== 'wasi')
 assert.ok(initial.startCalls >= 1)
 assert.equal(initial.activeGuards, 0)
 
@@ -133,7 +145,7 @@ if (mode === 'native') {
     binding.asyncPanicString(7),
     /custom runtime async string panic: 7/,
   )
-} else {
+} else if (mode === 'wasi') {
   // Stable Rust ships wasm32-wasip1 with panic=abort. catch_unwind cannot
   // turn that trap into a Promise rejection, so isolate the public behavior.
   const panicResult = spawnSync(

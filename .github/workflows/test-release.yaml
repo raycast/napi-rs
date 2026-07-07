@@ -966,7 +966,7 @@ jobs:
         env:
           RUSTFLAGS: '--cfg tokio_unstable'
       - name: Test threaded WASI artifact
-        run: node examples/custom-async-runtime/test.mjs wasi
+        run: node examples/custom-async-runtime/test.mjs wasi-threads
 
   check-unix-runtime-module-retention:
     runs-on: ubuntu-latest
