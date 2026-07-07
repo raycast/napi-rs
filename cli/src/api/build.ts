@@ -1112,9 +1112,9 @@ class Builder {
   }
 
   private async writeJsBinding(idents: string[]) {
-    // WASI fallback flavors in preference order: threaded first — the two
-    // flavors have different performance semantics, so the threaded one must
-    // win when both are installed.
+    // Default WASI fallback order: threaded first. The generated root loader
+    // also lets consumers pin one exact declared flavor with
+    // NAPI_RS_WASI_FLAVOR.
     const declaredWasiTargets = this.config.targets.filter(
       (t) => t.platform === 'wasi',
     )
@@ -1387,7 +1387,8 @@ export interface WriteJsBindingOptions {
   /**
    * `platformArchABI`s of the declared WASI targets in fallback preference
    * order (threaded first). Defaults to the legacy `['wasm32-wasi']` chain
-   * when omitted or empty.
+   * when omitted or empty. Generated loaders expose these exact identities
+   * through `NAPI_RS_WASI_FLAVOR`.
    */
   wasiFlavors?: string[]
 }
