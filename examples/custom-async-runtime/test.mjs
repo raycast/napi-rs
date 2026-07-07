@@ -93,7 +93,7 @@ async function startRuntimeAfterRetirement(binding) {
 const initial = binding.getRuntimeMetrics()
 
 assert.equal(binding.isWasm(), mode === 'wasi')
-assert.equal(initial.tokioRuntimeEnabled, true)
+assert.equal(initial.tokioRuntimeEnabled, mode === 'native')
 assert.ok(initial.startCalls >= 1)
 assert.equal(initial.activeGuards, 0)
 

@@ -8,9 +8,7 @@
     "build": "node build.mjs",
     "build:pure": "node build.mjs --pure-only",
     "test": "node test.mjs native",
-    "test:pure": "node build.mjs --pure-only && node pure-runtime-lifecycle.mjs"
-    "build": "napi-raw build --platform --js index.cjs --dts index.d.cts",
-    "test": "node test.mjs native",
+    "test:pure": "node build.mjs --pure-only && node pure-runtime-lifecycle.mjs",
     "test:browser": "vitest run",
     "test:workerd": "node test-workerd.mjs"
   },
